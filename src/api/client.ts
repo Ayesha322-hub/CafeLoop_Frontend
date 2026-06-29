@@ -1,7 +1,7 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export const BASE_URL = 'http://192.168.100.44:3000/api/v1';
+export const BASE_URL = 'https://cafe-loop-app.vercel.app/api/v1';
 
 export interface ApiResponse<T> {
   success: boolean;
