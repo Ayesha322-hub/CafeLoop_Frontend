@@ -6,12 +6,15 @@ import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, ActivityIndicator } from 'react-native';
 
-// Import your screens
+import SplashScreen from './src/screens/Splash/SplashScreen';
 import LoginScreen from './src/screens/Auth/LoginScreen';
 import HomeScreen from './src/screens/Home/HomeScreen';
-import CafeDetailScreen from './src/screens/CafeDetail/CafeDetailscreen'; 
+import ProfileScreen from './src/screens/Profile/ProfileScreen';
+import CafeDetailScreen from './src/screens/CafeDetail/CafeDetailScreen';
 import CartScreen from './src/screens/Cart/CartScreen';
-import PlaceOrderScreen from './src/screens/Orders/Placeorderscreen';
+import PaymentScreen from './src/screens/Payment/PaymentScreen';
+import OrderTrackingScreen from './src/screens/Orders/OrderTrackingScreen';
+import RegisterScreen from './src/screens/Auth/RegisterScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -19,10 +22,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  // Check if user is already logged in
-  useEffect(() => {
-    checkAuth();
-  }, []);
+  useEffect(() => { checkAuth(); }, []);
 
   const checkAuth = async () => {
     try {
@@ -35,7 +35,6 @@ export default function App() {
     }
   };
 
-  // Show loading spinner while checking auth
   if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -48,15 +47,18 @@ export default function App() {
     <NavigationContainer>
       <StatusBar style="auto" />
       <Stack.Navigator
-        initialRouteName={isLoggedIn ? 'Home' : 'Login'}
+        initialRouteName={isLoggedIn ? 'Home' : 'Splash'}
         screenOptions={{ headerShown: false }}
       >
+        <Stack.Screen name="Splash" component={SplashScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="Profile" component={ProfileScreen} />
         <Stack.Screen name="CafeDetail" component={CafeDetailScreen} />
         <Stack.Screen name="Cart" component={CartScreen} />
-        <Stack.Screen name="Orders" component={PlaceOrderScreen} />
-        
+        <Stack.Screen name="Payment" component={PaymentScreen} />
+        <Stack.Screen name="OrderTracking" component={OrderTrackingScreen} />
+        <Stack.Screen name="Register" component={RegisterScreen} />
 
       </Stack.Navigator>
     </NavigationContainer>

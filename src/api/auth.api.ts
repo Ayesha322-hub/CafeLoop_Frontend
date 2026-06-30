@@ -40,17 +40,15 @@ export const clearTokens = async () => {
 // ── API ───────────────────────────────────────────
 export const authApi = {
   register: async (payload: RegisterPayload): Promise<AuthResponse> => {
-    const res = await apiClient.post<AuthResponse>('/auth/register', payload);
-
-    await saveTokens(res.data);
-    return res.data;
+    const res: any = await apiClient.post('/auth/register', payload);
+    await saveTokens(res);
+    return res;
   },
 
   login: async (payload: LoginPayload): Promise<AuthResponse> => {
-    const res = await apiClient.post<AuthResponse>('/auth/login', payload);
-
-    await saveTokens(res.data);
-    return res.data;
+    const res: any = await apiClient.post('/auth/login', payload);
+    await saveTokens(res);
+    return res;
   },
 
   logout: async (): Promise<void> => {
@@ -59,11 +57,10 @@ export const authApi = {
   },
 
   googleLogin: async (idToken: string): Promise<AuthResponse> => {
-    const res = await apiClient.post<AuthResponse>('/auth/google/mobile', {
+    const res: any = await apiClient.post('/auth/google/mobile', {
       idToken,
     });
-
-    await saveTokens(res.data);
-    return res.data;
+    await saveTokens(res);
+    return res;
   },
 };

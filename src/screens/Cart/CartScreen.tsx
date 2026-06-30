@@ -3,18 +3,37 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   TouchableOpacity,
-  ActivityIndicator,
   Alert,
+  ScrollView,
+  ActivityIndicator,
+  TextInput,
+  Switch,
   SafeAreaView,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import apiClient from '../../api/client';
+
+const COLORS = {
+  coffee: '#1C0A00',
+  caramel: '#C68642',
+  cream: '#FDF6EC',
+  foam: '#FFF8F0',
+  gold: '#E8A045',
+  accent: '#FF6B35',
+  text: '#1C0A00',
+  muted: '#8B6F5E',
+  border: '#EDE0D4',
+  success: '#2ECC71',
+};
 
 const CartScreen = ({ navigation }: any) => {
   const [cart, setCart] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [placingOrder, setPlacingOrder] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [useLoyalty, setUseLoyalty] = useState(false);
+  const [loyaltyPoints, setLoyaltyPoints] = useState(0);
 
   useEffect(() => {
     loadCart();
@@ -22,8 +41,12 @@ const CartScreen = ({ navigation }: any) => {
 
   const loadCart = async () => {
     try {
-      const res: any = await apiClient.get('/cart');
-      setCart(res);
+      const [cartRes, loyaltyRes]: any = await Promise.all([
+        apiClient.get('/cart'),
+        apiClient.get('/loyalty'),
+      ]);
+      setCart(cartRes);
+      setLoyaltyPoints(loyaltyRes?.points || 0);
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to load cart');
     } finally {
@@ -31,74 +54,43 @@ const CartScreen = ({ navigation }: any) => {
     }
   };
 
-  const handleRemoveItem = async (itemId: string) => {
-    try {
-      await apiClient.delete(`/cart/items/${itemId}`);
-      // Refresh cart
-      loadCart();
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to remove item');
-    }
-  };
-
   const handleUpdateQuantity = async (itemId: string, quantity: number) => {
-    if (quantity < 1) {
-      handleRemoveItem(itemId);
-      return;
-    }
     try {
-      await apiClient.patch(`/cart/items/${itemId}`, { quantity });
+      if (quantity < 1) {
+        await apiClient.delete(`/cart/items/${itemId}`);
+      } else {
+        await apiClient.patch(`/cart/items/${itemId}`, { quantity });
+      }
       loadCart();
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to update quantity');
+      Alert.alert('Error', err.message || 'Failed to update');
     }
   };
 
-  const handlePlaceOrder = async () => {
-  if (!cart?.items?.length) {
-    Alert.alert('Empty Cart', 'Add some items before placing an order.');
-    return;
-  }
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    try {
+      const result: any = await apiClient.post('/cart/coupon', {
+        code: couponCode,
+        subtotal,
+      });
+      setCouponDiscount(result.discount);
+    } catch (err: any) {
+      Alert.alert('Invalid Coupon', err.message || 'Could not apply coupon');
+    }
+  };
 
-  setPlacingOrder(true);
-
-  try {
-    await apiClient.post('/orders', {
-      paymentMethod: 'CASH',
+  const handleCheckout = () => {
+    navigation.navigate('Payment', {
+      couponCode: couponDiscount > 0 ? couponCode : undefined,
+      useLoyaltyPoints: useLoyalty,
     });
-
-    Alert.alert('🎉 Order Placed!', 'Your order has been placed successfully.', [
-      { text: 'OK', onPress: () => navigation.navigate('Home') },
-    ]);
-  } catch (err: any) {
-    Alert.alert('Error', err.message || 'Failed to place order');
-  } finally {
-    setPlacingOrder(false);
-  }
-};
-
-  const handleClearCart = async () => {
-    Alert.alert('Clear Cart', 'Remove all items from your cart?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Clear',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await apiClient.delete('/cart');
-            loadCart();
-          } catch (err: any) {
-            Alert.alert('Error', err.message);
-          }
-        },
-      },
-    ]);
   };
 
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#6B4226" />
+        <ActivityIndicator size="large" color={COLORS.gold} />
       </View>
     );
   }
@@ -108,217 +100,264 @@ const CartScreen = ({ navigation }: any) => {
     (sum: number, item: any) => sum + item.unitPrice * item.quantity,
     0
   );
-  const deliveryFee = 50;
-  const total = subtotal + deliveryFee;
+  const loyaltyDiscount = useLoyalty ? Math.min(loyaltyPoints, subtotal - couponDiscount) : 0;
+  const deliveryFee = 0;
+  const total = subtotal - couponDiscount - loyaltyDiscount + deliveryFee;
 
   return (
     <SafeAreaView style={styles.container}>
+      <ScrollView showsVerticalScrollIndicator={false}>
 
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Cart</Text>
-        {items.length > 0 && (
-          <TouchableOpacity onPress={handleClearCart} style={styles.clearBtn}>
-            <Text style={styles.clearText}>Clear</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+        {/* ── Header ── */}
+        <LinearGradient
+          colors={[COLORS.coffee, '#4A2000']}
+          style={styles.header}
+        >
+          <Text style={styles.headerTitle}>My Cart 🛒</Text>
+          <Text style={styles.headerSubtitle}>
+            {cart?.cafe?.name || 'Cart'} · {items.length} item{items.length !== 1 ? 's' : ''}
+          </Text>
+        </LinearGradient>
 
-      {items.length === 0 ? (
-        /* ── Empty State ── */
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyEmoji}>🛒</Text>
-          <Text style={styles.emptyTitle}>Your cart is empty</Text>
-          <Text style={styles.emptySubtitle}>Add items from a cafe to get started</Text>
-          <TouchableOpacity
-            style={styles.browseBtn}
-            onPress={() => navigation.navigate('Home')}
-          >
-            <Text style={styles.browseBtnText}>Browse Cafes</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <>
-          {/* ── Cart Items ── */}
-          <FlatList
-            data={items}
-            keyExtractor={(item: any) => item.id}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            renderItem={({ item }: any) => (
-              <View style={styles.cartItem}>
-                {/* Item Info */}
-                <View style={styles.itemInfo}>
-                  <Text style={styles.itemName}>{item.menuItem?.name || item.name}</Text>
-                  {item.customizations && Object.keys(item.customizations).length > 0 && (
-                    <Text style={styles.itemCustom}>
-                      {Object.entries(item.customizations)
-                        .map(([k, v]) => `${k}: ${v}`)
-                        .join(' · ')}
-                    </Text>
-                  )}
-                  <Text style={styles.itemPrice}>PKR {item.unitPrice}</Text>
+        <View style={styles.body}>
+
+          {items.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyEmoji}>🛒</Text>
+              <Text style={styles.emptyTitle}>Your cart is empty</Text>
+              <TouchableOpacity
+                style={styles.browseBtn}
+                onPress={() => navigation.navigate('Home')}
+              >
+                <Text style={styles.browseBtnText}>Browse Cafes</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              {/* ── Cart Items ── */}
+              {items.map((item: any) => (
+                <View key={item.id} style={styles.cartItem}>
+                  <View style={styles.itemThumb}>
+                    <Text style={styles.itemThumbEmoji}>☕</Text>
+                  </View>
+                  <View style={styles.itemInfo}>
+                    <Text style={styles.itemName}>{item.menuItem?.name || item.name}</Text>
+                    {item.customizations && Object.keys(item.customizations).length > 0 && (
+                      <Text style={styles.itemOpts}>
+                        {Object.values(item.customizations).join(' · ')}
+                      </Text>
+                    )}
+                    <View style={styles.itemRow}>
+                      <Text style={styles.itemPrice}>PKR {item.unitPrice}</Text>
+                      <View style={styles.qtyControls}>
+                        <TouchableOpacity
+                          style={styles.qtyBtn}
+                          onPress={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                        >
+                          <Text style={styles.qtyBtnText}>−</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.qtyNum}>{item.quantity}</Text>
+                        <TouchableOpacity
+                          style={styles.qtyBtn}
+                          onPress={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                        >
+                          <Text style={styles.qtyBtnText}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
                 </View>
+              ))}
 
-                {/* Quantity Controls */}
-                <View style={styles.qtyControls}>
-                  <TouchableOpacity
-                    style={styles.qtyBtn}
-                    onPress={() => handleUpdateQuantity(item.id, item.quantity - 1)}
-                  >
-                    <Text style={styles.qtyBtnText}>−</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.qtyText}>{item.quantity}</Text>
-                  <TouchableOpacity
-                    style={styles.qtyBtn}
-                    onPress={() => handleUpdateQuantity(item.id, item.quantity + 1)}
-                  >
-                    <Text style={styles.qtyBtnText}>+</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Line Total */}
-                <Text style={styles.lineTotal}>
-                  PKR {item.unitPrice * item.quantity}
-                </Text>
+              {/* ── Coupon Box ── */}
+              <View style={styles.couponBox}>
+                <Text style={{ fontSize: 20 }}>🎟️</Text>
+                <TextInput
+                  style={styles.couponInput}
+                  placeholder="Enter coupon code..."
+                  placeholderTextColor="#bbb"
+                  value={couponCode}
+                  onChangeText={setCouponCode}
+                  autoCapitalize="characters"
+                />
+                <TouchableOpacity style={styles.applyBtn} onPress={handleApplyCoupon}>
+                  <Text style={styles.applyBtnText}>Apply</Text>
+                </TouchableOpacity>
               </View>
-            )}
-            ListFooterComponent={
-              <View style={styles.divider} />
-            }
-          />
 
-          {/* ── Order Summary ── */}
-          <View style={styles.summary}>
-            <Text style={styles.summaryTitle}>Order Summary</Text>
-
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Subtotal</Text>
-              <Text style={styles.summaryValue}>PKR {subtotal}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Delivery Fee</Text>
-              <Text style={styles.summaryValue}>PKR {deliveryFee}</Text>
-            </View>
-            <View style={[styles.summaryRow, styles.totalRow]}>
-              <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>PKR {total}</Text>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.orderBtn, placingOrder && styles.orderBtnDisabled]}
-              onPress={handlePlaceOrder}
-              disabled={placingOrder}
-            >
-              {placingOrder ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.orderBtnText}>
-                  Place Order · PKR {total}
-                </Text>
+              {/* ── Loyalty Row ── */}
+              {loyaltyPoints > 0 && (
+                <View style={styles.loyaltyRow}>
+                  <View style={styles.loyaltyIcon}>
+                    <Text style={{ fontSize: 18 }}>⭐</Text>
+                  </View>
+                  <View style={styles.loyaltyText}>
+                    <Text style={styles.loyaltyTitle}>Use {loyaltyPoints} loyalty points</Text>
+                    <Text style={styles.loyaltySub}>Save PKR {loyaltyPoints} on this order</Text>
+                  </View>
+                  <Switch
+                    value={useLoyalty}
+                    onValueChange={setUseLoyalty}
+                    trackColor={{ false: COLORS.border, true: COLORS.gold }}
+                    thumbColor="#fff"
+                  />
+                </View>
               )}
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
+
+              {/* ── Order Summary ── */}
+              <View style={styles.summaryBox}>
+                <Text style={styles.summaryTitle}>Order Summary</Text>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Subtotal</Text>
+                  <Text style={styles.summaryValue}>PKR {subtotal}</Text>
+                </View>
+                {couponDiscount > 0 && (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.discountLabel}>Coupon ({couponCode})</Text>
+                    <Text style={styles.discountValue}>− PKR {couponDiscount}</Text>
+                  </View>
+                )}
+                {loyaltyDiscount > 0 && (
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.discountLabel}>Loyalty Points</Text>
+                    <Text style={styles.discountValue}>− PKR {loyaltyDiscount}</Text>
+                  </View>
+                )}
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Delivery Fee</Text>
+                  <Text style={styles.summaryValue}>PKR {deliveryFee}</Text>
+                </View>
+                <View style={[styles.summaryRow, styles.totalRow]}>
+                  <Text style={styles.totalLabel}>Total</Text>
+                  <Text style={styles.totalValue}>PKR {total}</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity style={styles.checkoutBtn} onPress={handleCheckout}>
+                <Text style={styles.checkoutBtnText}>Proceed to Checkout →</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9f9f9' },
+  container: { flex: 1, backgroundColor: COLORS.foam },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { paddingTop: 24, paddingBottom: 24, paddingHorizontal: 20 },
+  headerTitle: { fontFamily: 'serif', fontSize: 26, color: COLORS.cream, fontWeight: '900' },
+  headerSubtitle: { color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 4 },
+  body: { padding: 16 },
 
-  // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  backBtn: { padding: 4 },
-  backText: { fontSize: 16, color: '#6B4226', fontWeight: '600' },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#1a1a1a' },
-  clearBtn: { padding: 4 },
-  clearText: { fontSize: 14, color: '#e74c3c', fontWeight: '600' },
-
-  // Empty
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
+  emptyContainer: { alignItems: 'center', paddingVertical: 60 },
   emptyEmoji: { fontSize: 64, marginBottom: 16 },
-  emptyTitle: { fontSize: 22, fontWeight: '700', color: '#1a1a1a', marginBottom: 8 },
-  emptySubtitle: { fontSize: 14, color: '#888', marginBottom: 32, textAlign: 'center' },
-  browseBtn: { backgroundColor: '#6B4226', paddingHorizontal: 32, paddingVertical: 14, borderRadius: 12 },
-  browseBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  emptyTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginBottom: 24 },
+  browseBtn: { backgroundColor: COLORS.coffee, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 14 },
+  browseBtnText: { color: COLORS.cream, fontWeight: '700', fontSize: 15 },
 
-  // List
-  listContent: { padding: 16, paddingBottom: 8 },
-
-  // Cart Item
   cartItem: {
     flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    elevation: 1,
-  },
-  itemInfo: { flex: 1, marginRight: 10 },
-  itemName: { fontSize: 15, fontWeight: '600', color: '#1a1a1a', marginBottom: 2 },
-  itemCustom: { fontSize: 12, color: '#aaa', marginBottom: 4 },
-  itemPrice: { fontSize: 13, color: '#6B4226', fontWeight: '600' },
-
-  // Quantity
-  qtyControls: { flexDirection: 'row', alignItems: 'center', marginRight: 12 },
-  qtyBtn: {
-    width: 28, height: 28, borderRadius: 8,
-    backgroundColor: '#f0f0f0',
-    justifyContent: 'center', alignItems: 'center',
-  },
-  qtyBtnText: { fontSize: 18, color: '#6B4226', fontWeight: '700', lineHeight: 22 },
-  qtyText: { fontSize: 15, fontWeight: '700', color: '#1a1a1a', marginHorizontal: 10 },
-
-  // Line total
-  lineTotal: { fontSize: 14, fontWeight: '700', color: '#1a1a1a', minWidth: 70, textAlign: 'right' },
-
-  divider: { height: 1, backgroundColor: '#eee', marginVertical: 8 },
-
-  // Summary
-  summary: {
-    backgroundColor: '#fff',
-    padding: 20,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 12,
+    shadowColor: COLORS.coffee,
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
   },
-  summaryTitle: { fontSize: 16, fontWeight: '700', color: '#1a1a1a', marginBottom: 12 },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  summaryLabel: { fontSize: 14, color: '#888' },
-  summaryValue: { fontSize: 14, color: '#1a1a1a', fontWeight: '500' },
-  totalRow: { borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 12, marginTop: 4, marginBottom: 16 },
-  totalLabel: { fontSize: 16, fontWeight: '700', color: '#1a1a1a' },
-  totalValue: { fontSize: 16, fontWeight: '700', color: '#6B4226' },
-
-  // Order Button
-  orderBtn: {
-    backgroundColor: '#6B4226',
-    padding: 16,
-    borderRadius: 12,
+  itemThumb: {
+    width: 60,
+    height: 60,
+    borderRadius: 14,
+    backgroundColor: COLORS.caramel,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
-  orderBtnDisabled: { opacity: 0.6 },
-  orderBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  itemThumbEmoji: { fontSize: 26 },
+  itemInfo: { flex: 1 },
+  itemName: { fontSize: 15, fontWeight: '700', color: COLORS.text, marginBottom: 3 },
+  itemOpts: { fontSize: 12, color: COLORS.muted, marginBottom: 8 },
+  itemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  itemPrice: { fontSize: 16, fontWeight: '800', color: COLORS.coffee },
+  qtyControls: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  qtyBtn: {
+    width: 26, height: 26, borderRadius: 8,
+    backgroundColor: COLORS.cream,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  qtyBtnText: { fontSize: 16, color: COLORS.coffee, fontWeight: '700' },
+  qtyNum: { fontSize: 15, fontWeight: '700', color: COLORS.text, minWidth: 16, textAlign: 'center' },
+
+  couponBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    gap: 10,
+    marginTop: 6,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+  },
+  couponInput: { flex: 1, fontSize: 14, color: COLORS.text, paddingVertical: 8 },
+  applyBtn: { backgroundColor: COLORS.gold, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
+  applyBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+
+  loyaltyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+    gap: 12,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+  },
+  loyaltyIcon: {
+    width: 36, height: 36, borderRadius: 12,
+    backgroundColor: '#FFF8E8',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  loyaltyText: { flex: 1 },
+  loyaltyTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  loyaltySub: { fontSize: 12, color: COLORS.muted, marginTop: 2 },
+
+  summaryBox: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: COLORS.coffee,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+  },
+  summaryTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text, marginBottom: 10 },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  summaryLabel: { fontSize: 13, color: COLORS.muted },
+  summaryValue: { fontSize: 13, color: COLORS.text, fontWeight: '500' },
+  discountLabel: { fontSize: 13, color: COLORS.success },
+  discountValue: { fontSize: 13, color: COLORS.success, fontWeight: '600' },
+  totalRow: { borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 10, marginTop: 6 },
+  totalLabel: { fontSize: 16, fontWeight: '800', color: COLORS.text },
+  totalValue: { fontSize: 16, fontWeight: '800', color: COLORS.text },
+
+  checkoutBtn: {
+    backgroundColor: COLORS.coffee,
+    paddingVertical: 18,
+    borderRadius: 16,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  checkoutBtnText: { color: COLORS.cream, fontSize: 16, fontWeight: '700' },
 });
 
 export default CartScreen;

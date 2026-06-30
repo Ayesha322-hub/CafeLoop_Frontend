@@ -24,21 +24,38 @@ const COLORS = {
   border: '#EDE0D4',
 };
 
-const LoginScreen = ({ navigation }: any) => {
-  const { login, isLoading } = useAuthStore();
+const RegisterScreen = ({ navigation }: any) => {
+  const { register, isLoading } = useAuthStore();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Missing fields', 'Please enter both email and password');
+  const handleRegister = async () => {
+    if (!name || !email || !password || !confirmPassword) {
+      Alert.alert('Missing fields', 'Please fill in all required fields');
       return;
     }
+    if (password !== confirmPassword) {
+      Alert.alert('Password mismatch', 'Passwords do not match');
+      return;
+    }
+    if (password.length < 6) {
+      Alert.alert('Weak password', 'Password must be at least 6 characters');
+      return;
+    }
+
     try {
-      await login(email, password);
+      await register({
+        name,
+        email,
+        phone: phone || undefined,
+        password,
+      });
       navigation.replace('Home');
     } catch (err: any) {
-      Alert.alert('Login Failed', err?.message || JSON.stringify(err) || 'Something went wrong');
+      Alert.alert('Registration Failed', err?.message || JSON.stringify(err) || 'Something went wrong');
     }
   };
 
@@ -55,13 +72,28 @@ const LoginScreen = ({ navigation }: any) => {
           style={styles.header}
         >
           <Text style={styles.headerEmoji}>☕</Text>
-          <Text style={styles.welcomeText}>Welcome back ☕</Text>
-          <Text style={styles.headerTitle}>Sign in to{'\n'}CaféLoop</Text>
-          <Text style={styles.headerSubtitle}>Your morning routine, simplified.</Text>
+          <Text style={styles.welcomeText}>Join us ☕</Text>
+          <Text style={styles.headerTitle}>Create your{'\n'}CaféLoop account</Text>
+          <Text style={styles.headerSubtitle}>Earn points with every cup.</Text>
         </LinearGradient>
 
         {/* ── Form ── */}
         <View style={styles.body}>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Full Name</Text>
+            <View style={styles.inputIconWrap}>
+              <Text style={styles.inputIcon}>👤</Text>
+              <TextInput
+                style={styles.inputField}
+                value={name}
+                onChangeText={setName}
+                placeholder=""
+                placeholderTextColor="#bbb"
+                autoCapitalize="words"
+              />
+            </View>
+          </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Email</Text>
@@ -75,6 +107,21 @@ const LoginScreen = ({ navigation }: any) => {
                 placeholderTextColor="#bbb"
                 keyboardType="email-address"
                 autoCapitalize="none"
+              />
+            </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Phone (optional)</Text>
+            <View style={styles.inputIconWrap}>
+              <Text style={styles.inputIcon}>📱</Text>
+              <TextInput
+                style={styles.inputField}
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="03XX XXXXXXX"
+                placeholderTextColor="#bbb"
+                keyboardType="phone-pad"
               />
             </View>
           </View>
@@ -94,43 +141,43 @@ const LoginScreen = ({ navigation }: any) => {
             </View>
           </View>
 
-          <TouchableOpacity>
-            <Text style={styles.forgotLink}>Forgot password?</Text>
-          </TouchableOpacity>
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Confirm Password</Text>
+            <View style={styles.inputIconWrap}>
+              <Text style={styles.inputIcon}>🔒</Text>
+              <TextInput
+                style={styles.inputField}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="••••••••"
+                placeholderTextColor="#bbb"
+                secureTextEntry
+              />
+            </View>
+          </View>
 
           <TouchableOpacity
-            style={styles.loginBtnWrap}
-            onPress={handleLogin}
+            style={styles.registerBtnWrap}
+            onPress={handleRegister}
             disabled={isLoading}
             activeOpacity={0.85}
           >
             <LinearGradient
               colors={[COLORS.coffee, '#4A2000']}
-              style={styles.loginBtn}
+              style={styles.registerBtn}
             >
               {isLoading ? (
                 <ActivityIndicator color={COLORS.cream} />
               ) : (
-                <Text style={styles.loginBtnText}>Sign In</Text>
+                <Text style={styles.registerBtnText}>Create Account</Text>
               )}
             </LinearGradient>
           </TouchableOpacity>
 
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or continue with</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <TouchableOpacity style={styles.socialBtn} activeOpacity={0.7}>
-            <Text style={styles.socialIcon}>🔵</Text>
-            <Text style={styles.socialBtnText}>Continue with Google</Text>
-          </TouchableOpacity>
-
-          <View style={styles.signupRow}>
-            <Text style={styles.signupText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-              <Text style={styles.signupLink}>Sign Up</Text>
+          <View style={styles.loginRow}>
+            <Text style={styles.loginText}>Already have an account? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+              <Text style={styles.loginLink}>Sign In</Text>
             </TouchableOpacity>
           </View>
 
@@ -161,10 +208,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   headerTitle: {
-    fontSize: 32,
+    fontSize: 30,
     fontWeight: '900',
     color: COLORS.cream,
-    lineHeight: 38,
+    lineHeight: 36,
   },
   headerSubtitle: {
     color: 'rgba(255,255,255,0.5)',
@@ -201,56 +248,27 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: COLORS.text,
   },
-  forgotLink: {
-    textAlign: 'right',
-    fontSize: 13,
-    color: COLORS.caramel,
-    fontWeight: '500',
-    marginBottom: 24,
-  },
-  loginBtnWrap: { marginBottom: 16, borderRadius: 16 },
-  loginBtn: {
+  registerBtnWrap: { marginTop: 8, marginBottom: 16, borderRadius: 16 },
+  registerBtn: {
     width: '100%',
     paddingVertical: 18,
     borderRadius: 16,
     alignItems: 'center',
   },
-  loginBtnText: {
+  registerBtnText: {
     color: COLORS.cream,
     fontSize: 16,
     fontWeight: '600',
     letterSpacing: 0.3,
   },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginVertical: 20,
-  },
-  dividerLine: { flex: 1, height: 1, backgroundColor: COLORS.border },
-  dividerText: { fontSize: 12, color: COLORS.muted, fontWeight: '500' },
-  socialBtn: {
-    width: '100%',
-    paddingVertical: 15,
-    backgroundColor: 'white',
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    borderRadius: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    marginBottom: 12,
-  },
-  socialIcon: { fontSize: 20 },
-  socialBtnText: { fontSize: 14, fontWeight: '600', color: COLORS.text },
-  signupRow: {
+  loginRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 20,
+    marginTop: 12,
+    marginBottom: 24,
   },
-  signupText: { fontSize: 14, color: COLORS.muted },
-  signupLink: { fontSize: 14, color: COLORS.caramel, fontWeight: '600' },
+  loginText: { fontSize: 14, color: COLORS.muted },
+  loginLink: { fontSize: 14, color: COLORS.caramel, fontWeight: '600' },
 });
 
-export default LoginScreen;
+export default RegisterScreen;

@@ -39,16 +39,21 @@ export const useAuthStore = create<AuthStore>((set) => ({
     }
   },
 
-  login: async (email, password) => {
-    set({ isLoading: true });
-    try {
-      await authApi.login({ email, password });
-      const user = await apiClient.get('/users/me');
-      set({ user: user as any, isAuthenticated: true });
-    } finally {
-      set({ isLoading: false });
-    }
-  },
+  login: async (email: string, password: string) => {
+  set({ isLoading: true });
+  try {
+    const result = await authApi.login({ email, password });
+    console.log('LOGIN RESULT:', JSON.stringify(result, null, 2));
+    
+    const user: any = await apiClient.get('/users/me');
+    set({ user, isAuthenticated: true });
+  } catch (err) {
+    console.log('LOGIN ERROR:', JSON.stringify(err, null, 2));
+    throw err;
+  } finally {
+    set({ isLoading: false });
+  }
+},
 
   register: async (payload) => {
     set({ isLoading: true });
@@ -62,7 +67,13 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   logout: async () => {
+  try {
     await authApi.logout();
-    set({ user: null, isAuthenticated: false });
-  },
+  } catch (err) {
+    console.log('Logout API call failed (continuing anyway):', err);
+  }
+  // Always clear local tokens regardless of API result
+  await AsyncStorage.multiRemove(['accessToken', 'refreshToken']);
+  set({ user: null, isAuthenticated: false });
+},
 }));
