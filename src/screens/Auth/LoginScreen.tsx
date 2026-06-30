@@ -116,17 +116,6 @@ const LoginScreen = ({ navigation }: any) => {
             </LinearGradient>
           </TouchableOpacity>
 
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or continue with</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <TouchableOpacity style={styles.socialBtn} activeOpacity={0.7}>
-            <Text style={styles.socialIcon}>🔵</Text>
-            <Text style={styles.socialBtnText}>Continue with Google</Text>
-          </TouchableOpacity>
-
           <View style={styles.signupRow}>
             <Text style={styles.signupText}>Don't have an account? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Register')}>
@@ -221,29 +210,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.3,
   },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginVertical: 20,
-  },
-  dividerLine: { flex: 1, height: 1, backgroundColor: COLORS.border },
-  dividerText: { fontSize: 12, color: COLORS.muted, fontWeight: '500' },
-  socialBtn: {
-    width: '100%',
-    paddingVertical: 15,
-    backgroundColor: 'white',
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    borderRadius: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    marginBottom: 12,
-  },
-  socialIcon: { fontSize: 20 },
-  socialBtnText: { fontSize: 14, fontWeight: '600', color: COLORS.text },
   signupRow: {
     flexDirection: 'row',
     justifyContent: 'center',

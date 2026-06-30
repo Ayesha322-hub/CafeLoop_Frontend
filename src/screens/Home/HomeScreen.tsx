@@ -11,16 +11,38 @@ import {
 import apiClient from '../../api/client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import SideDrawer from '../../components/SideDrawer';
+import LocationSearchModal from '../../components/LocationSearchModal';
+import { useLocation } from '../../hooks/useLocation';
+import { sortCafesByDistance } from '../../utils/distance';
 
 const HomeScreen = ({ navigation }: any) => {
-  const [cafes, setCafes] = useState([]);
+  const [allCafes, setAllCafes] = useState<any[]>([]);
+  const [cafes, setCafes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [drawerVisible, setDrawerVisible] = useState(false);
+  const [locationModalVisible, setLocationModalVisible] = useState(false);
+  const {
+    location,
+    loading: locationLoading,
+    permissionStatus,
+    refresh: refreshLocation,
+    setManualLocation,
+  } = useLocation();
 
   useEffect(() => {
     loadData();
   }, []);
+
+  // Whenever the raw cafe list or the user's location changes, recompute
+  // the displayed list — sorted/filtered by distance when we have GPS coords.
+  useEffect(() => {
+    if (location) {
+      setCafes(sortCafesByDistance(allCafes, location.latitude, location.longitude, 10));
+    } else {
+      setCafes(allCafes);
+    }
+  }, [allCafes, location]);
 
   const loadData = async () => {
     try {
@@ -33,7 +55,7 @@ const HomeScreen = ({ navigation }: any) => {
       const userRes: any = await apiClient.get('/users/me');
       console.log('User response:', JSON.stringify(userRes));
 
-      setCafes(cafesRes?.cafes || cafesRes || []);
+      setAllCafes(cafesRes?.cafes || cafesRes || []);
       setUser(userRes);
     } catch (err: any) {
       console.log('Error:', JSON.stringify(err));
@@ -63,6 +85,20 @@ const HomeScreen = ({ navigation }: any) => {
         <View style={{ width: 40 }} />
       </View>
 
+      {/* Location pill */}
+      <TouchableOpacity
+        style={styles.locationPill}
+        onPress={() => setLocationModalVisible(true)}
+      >
+        {locationLoading ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <Text style={styles.locationText} numberOfLines={1}>
+            📍 {location?.label || (permissionStatus === 'denied' ? 'Location off' : 'Detecting…')} ▾
+          </Text>
+        )}
+      </TouchableOpacity>
+
       {/* Header */}
       <View style={styles.header}>
         <View>
@@ -80,12 +116,14 @@ const HomeScreen = ({ navigation }: any) => {
       </TouchableOpacity>
 
       {/* Cafes list */}
-      <Text style={styles.sectionTitle}>Nearby Cafes</Text>
+      <Text style={styles.sectionTitle}>{location ? 'Nearby Cafes' : 'Cafes'}</Text>
 
       {cafes.length === 0 ? (
         <View style={styles.centered}>
           <Text style={styles.emptyText}>☕ No cafes yet</Text>
-          <Text style={styles.emptySubtext}>Add cafes from the admin panel</Text>
+          <Text style={styles.emptySubtext}>
+            {location ? 'No cafes found near you' : 'Add cafes from the admin panel'}
+          </Text>
         </View>
       ) : (
         <FlatList
@@ -101,6 +139,9 @@ const HomeScreen = ({ navigation }: any) => {
                 <Text style={styles.cafeAddress}>{item.address}</Text>
                 <View style={styles.cafeFooter}>
                   <Text style={styles.rating}>⭐ {item.rating}</Text>
+                  {typeof item.distanceKm === 'number' && (
+                    <Text style={styles.distance}>📍 {item.distanceKm} km</Text>
+                  )}
                   <Text style={[styles.status, { color: item.isOpen ? 'green' : 'red' }]}>
                     {item.isOpen ? '● Open' : '● Closed'}
                   </Text>
@@ -117,6 +158,15 @@ const HomeScreen = ({ navigation }: any) => {
         onClose={() => setDrawerVisible(false)}
         navigation={navigation}
         activeScreen="Home"
+      />
+
+      {/* Location search modal */}
+      <LocationSearchModal
+        visible={locationModalVisible}
+        onClose={() => setLocationModalVisible(false)}
+        onSelect={setManualLocation}
+        onUseCurrentLocation={refreshLocation}
+        currentLocationLoading={locationLoading}
       />
     </View>
   );
@@ -141,6 +191,18 @@ const styles = StyleSheet.create({
   hamburgerIcon: { fontSize: 24, color: '#1a1a1a' },
   topBarTitle: { fontSize: 18, fontWeight: '700', color: '#1a1a1a' },
 
+  locationPill: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#6B4226',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 12,
+    marginHorizontal: 16,
+    maxWidth: '90%',
+  },
+  locationText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, marginTop: 16, paddingHorizontal: 16 },
   greeting: { fontSize: 14, color: '#888' },
   name: { fontSize: 22, fontWeight: '700', color: '#1a1a1a' },
@@ -155,6 +217,7 @@ const styles = StyleSheet.create({
   cafeAddress: { fontSize: 13, color: '#888', marginBottom: 8 },
   cafeFooter: { flexDirection: 'row', justifyContent: 'space-between' },
   rating: { fontSize: 13, color: '#F4A300' },
+  distance: { fontSize: 13, color: '#6B4226', fontWeight: '600' },
   status: { fontSize: 13, fontWeight: '600' },
   emptyText: { fontSize: 20, color: '#888', marginBottom: 8 },
   emptySubtext: { fontSize: 14, color: '#bbb' },

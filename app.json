@@ -19,6 +19,15 @@
       },
       "predictiveBackGestureEnabled": false
     },
+
+    "plugins": [
+  [
+    "expo-location",
+    {
+      "locationAlwaysAndWhenInUsePermission": "Allow CaféLoop to use your location to show cafés near you."
+    }
+  ]
+],
     "web": {
       "favicon": "./assets/favicon.png"
     },

@@ -9,31 +9,29 @@ import {
   Alert,
   Switch,
   SafeAreaView,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import apiClient from '../../api/client';
 import { useAuthStore } from '../../store/auth.store';
-
-const COLORS = {
-  coffee: '#1C0A00',
-  caramel: '#C68642',
-  cream: '#FDF6EC',
-  foam: '#FFF8F0',
-  gold: '#E8A045',
-  accent: '#FF6B35',
-  text: '#1C0A00',
-  muted: '#8B6F5E',
-  border: '#EDE0D4',
-};
+import { useTheme } from '../../theme/ThemeContext';
 
 const ProfileScreen = ({ navigation }: any) => {
   const { logout } = useAuthStore();
+  const { theme, darkMode, toggleDarkMode } = useTheme();
+
   const [user, setUser] = useState<any>(null);
   const [loyalty, setLoyalty] = useState<any>(null);
   const [referral, setReferral] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [notifEnabled, setNotifEnabled] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
+
+  // ── Edit Profile modal state ──────────────────────
+  const [editVisible, setEditVisible] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -50,7 +48,8 @@ const ProfileScreen = ({ navigation }: any) => {
       setLoyalty(loyaltyRes);
       setReferral(referralRes);
       setNotifEnabled(userRes?.pushEnabled ?? true);
-      setDarkMode(userRes?.darkMode ?? false);
+      setEditName(userRes?.name || '');
+      setEditPhone(userRes?.phone || '');
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to load profile');
     } finally {
@@ -59,21 +58,18 @@ const ProfileScreen = ({ navigation }: any) => {
   };
 
   const handleSignOut = () => {
-  Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-    { text: 'Cancel', style: 'cancel' },
-    {
-      text: 'Sign Out',
-      style: 'destructive',
-      onPress: async () => {
-        await logout();
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Login' }],
-        });
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: async () => {
+          await logout();
+          navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+        },
       },
-    },
-  ]);
-};
+    ]);
+  };
 
   const handleToggleNotif = async (value: boolean) => {
     setNotifEnabled(value);
@@ -82,17 +78,30 @@ const ProfileScreen = ({ navigation }: any) => {
     } catch {}
   };
 
-  const handleToggleDarkMode = async (value: boolean) => {
-    setDarkMode(value);
+  const handleSaveProfile = async () => {
+    if (!editName.trim()) {
+      Alert.alert('Name required', 'Please enter your name');
+      return;
+    }
+    setSaving(true);
     try {
-      await apiClient.patch('/users/me', { darkMode: value });
-    } catch {}
+      const updated: any = await apiClient.patch('/users/me', {
+        name: editName.trim(),
+        phone: editPhone.trim() || undefined,
+      });
+      setUser({ ...user, ...updated });
+      setEditVisible(false);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to update profile');
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={COLORS.gold} />
+      <View style={[styles.centered, { backgroundColor: theme.foam }]}>
+        <ActivityIndicator size="large" color={theme.gold} />
       </View>
     );
   }
@@ -101,22 +110,22 @@ const ProfileScreen = ({ navigation }: any) => {
   const progressPercent = loyalty?.progressPercent || 0;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.foam }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
 
         {/* ── Hero ── */}
         <View style={styles.profileHero}>
-          <LinearGradient colors={[COLORS.gold, COLORS.accent]} style={styles.avatar}>
+          <LinearGradient colors={[theme.gold, theme.accent]} style={styles.avatar}>
             <Text style={styles.avatarText}>{initial}</Text>
           </LinearGradient>
-          <Text style={styles.profileName}>{user?.name}</Text>
-          <Text style={styles.profileEmail}>{user?.email}</Text>
+          <Text style={[styles.profileName, { color: theme.text }]}>{user?.name}</Text>
+          <Text style={[styles.profileEmail, { color: theme.muted }]}>{user?.email}</Text>
         </View>
 
         {/* ── Loyalty Card ── */}
         <View style={styles.loyaltyCardWrap}>
           <LinearGradient
-            colors={[COLORS.coffee, '#4A2000']}
+            colors={[theme.coffee, '#4A2000']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.loyaltyCard}
@@ -145,31 +154,36 @@ const ProfileScreen = ({ navigation }: any) => {
         <View style={styles.profileBody}>
 
           {/* ── Account Section ── */}
-          <Text style={styles.menuSectionTitle}>Account</Text>
-          <View style={styles.menuSection}>
-            <TouchableOpacity style={styles.menuRow}>
+          <Text style={[styles.menuSectionTitle, { color: theme.muted }]}>Account</Text>
+          <View style={[styles.menuSection, { backgroundColor: theme.card }]}>
+            <TouchableOpacity
+              style={[styles.menuRow, { borderBottomColor: theme.foam }]}
+              onPress={() => setEditVisible(true)}
+            >
               <View style={[styles.menuRowIcon, { backgroundColor: '#FFF0D4' }]}>
                 <Text style={{ fontSize: 18 }}>👤</Text>
               </View>
               <View style={styles.menuRowText}>
-                <Text style={styles.menuRowTitle}>Edit Profile</Text>
-                <Text style={styles.menuRowSub}>Name, phone, avatar</Text>
+                <Text style={[styles.menuRowTitle, { color: theme.text }]}>Edit Profile</Text>
+                <Text style={[styles.menuRowSub, { color: theme.muted }]}>Name, phone</Text>
               </View>
-              <Text style={styles.menuRowArrow}>›</Text>
+              <Text style={[styles.menuRowArrow, { color: theme.muted }]}>›</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.menuRow}
+              style={[styles.menuRow, { borderBottomColor: theme.foam }]}
               onPress={() => navigation.navigate('OrderHistory')}
             >
               <View style={[styles.menuRowIcon, { backgroundColor: '#E8F5E9' }]}>
                 <Text style={{ fontSize: 18 }}>📦</Text>
               </View>
               <View style={styles.menuRowText}>
-                <Text style={styles.menuRowTitle}>Order History</Text>
-                <Text style={styles.menuRowSub}>{user?.totalOrders || 0} orders placed</Text>
+                <Text style={[styles.menuRowTitle, { color: theme.text }]}>Order History</Text>
+                <Text style={[styles.menuRowSub, { color: theme.muted }]}>
+                  {user?.totalOrders || 0} orders placed
+                </Text>
               </View>
-              <Text style={styles.menuRowArrow}>›</Text>
+              <Text style={[styles.menuRowArrow, { color: theme.muted }]}>›</Text>
             </TouchableOpacity>
 
             <View style={[styles.menuRow, { borderBottomWidth: 0 }]}>
@@ -177,29 +191,29 @@ const ProfileScreen = ({ navigation }: any) => {
                 <Text style={{ fontSize: 18 }}>🎟️</Text>
               </View>
               <View style={styles.menuRowText}>
-                <Text style={styles.menuRowTitle}>My Referral Code</Text>
-                <Text style={styles.menuRowSub}>
+                <Text style={[styles.menuRowTitle, { color: theme.text }]}>My Referral Code</Text>
+                <Text style={[styles.menuRowSub, { color: theme.muted }]}>
                   {referral?.referralCode} · {referral?.successfulReferrals || 0} friends joined
                 </Text>
               </View>
-              <Text style={styles.menuRowArrow}>›</Text>
+              <Text style={[styles.menuRowArrow, { color: theme.muted }]}>›</Text>
             </View>
           </View>
 
           {/* ── Preferences Section ── */}
-          <Text style={styles.menuSectionTitle}>Preferences</Text>
-          <View style={styles.menuSection}>
-            <View style={styles.menuRow}>
+          <Text style={[styles.menuSectionTitle, { color: theme.muted }]}>Preferences</Text>
+          <View style={[styles.menuSection, { backgroundColor: theme.card }]}>
+            <View style={[styles.menuRow, { borderBottomColor: theme.foam }]}>
               <View style={[styles.menuRowIcon, { backgroundColor: '#FFF0F0' }]}>
                 <Text style={{ fontSize: 18 }}>🔔</Text>
               </View>
               <View style={styles.menuRowText}>
-                <Text style={styles.menuRowTitle}>Notifications</Text>
+                <Text style={[styles.menuRowTitle, { color: theme.text }]}>Notifications</Text>
               </View>
               <Switch
                 value={notifEnabled}
                 onValueChange={handleToggleNotif}
-                trackColor={{ false: COLORS.border, true: COLORS.gold }}
+                trackColor={{ false: theme.border, true: theme.gold }}
                 thumbColor="#fff"
               />
             </View>
@@ -208,12 +222,12 @@ const ProfileScreen = ({ navigation }: any) => {
                 <Text style={{ fontSize: 18 }}>🌙</Text>
               </View>
               <View style={styles.menuRowText}>
-                <Text style={styles.menuRowTitle}>Dark Mode</Text>
+                <Text style={[styles.menuRowTitle, { color: theme.text }]}>Dark Mode</Text>
               </View>
               <Switch
                 value={darkMode}
-                onValueChange={handleToggleDarkMode}
-                trackColor={{ false: COLORS.border, true: COLORS.gold }}
+                onValueChange={toggleDarkMode}
+                trackColor={{ false: theme.border, true: theme.gold }}
                 thumbColor="#fff"
               />
             </View>
@@ -225,23 +239,68 @@ const ProfileScreen = ({ navigation }: any) => {
 
         </View>
       </ScrollView>
+
+      {/* ── Edit Profile Modal ── */}
+      <Modal visible={editVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: theme.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Edit Profile</Text>
+
+            <Text style={[styles.inputLabel, { color: theme.muted }]}>Name</Text>
+            <TextInput
+              style={[styles.input, { borderColor: theme.border, color: theme.text }]}
+              value={editName}
+              onChangeText={setEditName}
+              placeholder="Your name"
+              placeholderTextColor={theme.muted}
+            />
+
+            <Text style={[styles.inputLabel, { color: theme.muted }]}>Phone</Text>
+            <TextInput
+              style={[styles.input, { borderColor: theme.border, color: theme.text }]}
+              value={editPhone}
+              onChangeText={setEditPhone}
+              placeholder="03001234567"
+              placeholderTextColor={theme.muted}
+              keyboardType="phone-pad"
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalBtnCancel, { borderColor: theme.border }]}
+                onPress={() => setEditVisible(false)}
+              >
+                <Text style={{ color: theme.muted, fontWeight: '600' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalBtnSave]}
+                onPress={handleSaveProfile}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.foam },
+  container: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   profileHero: { alignItems: 'center', paddingTop: 30, paddingBottom: 20 },
-  avatar: {
-    width: 84, height: 84, borderRadius: 42,
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: 12,
-  },
+  avatar: { width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   avatarText: { fontSize: 32, fontWeight: '800', color: '#fff' },
-  profileName: { fontSize: 20, fontWeight: '700', color: COLORS.text },
-  profileEmail: { fontSize: 13, color: COLORS.muted, marginTop: 2 },
+  profileName: { fontSize: 20, fontWeight: '700' },
+  profileEmail: { fontSize: 13, marginTop: 2 },
 
   loyaltyCardWrap: { paddingHorizontal: 16, marginBottom: 20 },
   loyaltyCard: { borderRadius: 20, padding: 20 },
@@ -256,33 +315,28 @@ const styles = StyleSheet.create({
   progressFill: { height: '100%', backgroundColor: '#fff', borderRadius: 100 },
 
   profileBody: { paddingHorizontal: 16, paddingBottom: 30 },
-  menuSectionTitle: {
-    fontSize: 11, fontWeight: '700', color: COLORS.muted,
-    textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 8, marginTop: 8,
-  },
-  menuSection: {
-    backgroundColor: '#fff', borderRadius: 16, marginBottom: 16,
-    shadowColor: COLORS.coffee, shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05, shadowRadius: 8,
-  },
-  menuRow: {
-    flexDirection: 'row', alignItems: 'center',
-    padding: 14, borderBottomWidth: 1, borderBottomColor: COLORS.foam,
-  },
-  menuRowIcon: {
-    width: 38, height: 38, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center', marginRight: 12,
-  },
+  menuSectionTitle: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 8, marginTop: 8 },
+  menuSection: { borderRadius: 16, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 },
+  menuRow: { flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1 },
+  menuRowIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   menuRowText: { flex: 1 },
-  menuRowTitle: { fontSize: 15, fontWeight: '600', color: COLORS.text },
-  menuRowSub: { fontSize: 12, color: COLORS.muted, marginTop: 2 },
-  menuRowArrow: { color: COLORS.muted, fontSize: 18 },
+  menuRowTitle: { fontSize: 15, fontWeight: '600' },
+  menuRowSub: { fontSize: 12, marginTop: 2 },
+  menuRowArrow: { fontSize: 18 },
 
-  logoutBtn: {
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#FCD9D9',
-    paddingVertical: 16, borderRadius: 14, alignItems: 'center', marginTop: 8,
-  },
+  logoutBtn: { backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#FCD9D9', paddingVertical: 16, borderRadius: 14, alignItems: 'center', marginTop: 8 },
   logoutBtnText: { color: '#e74c3c', fontSize: 15, fontWeight: '700' },
+
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalCard: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 36 },
+  modalTitle: { fontSize: 20, fontWeight: '800', marginBottom: 20 },
+  inputLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6, marginTop: 12 },
+  input: { borderWidth: 1.5, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14, fontSize: 15 },
+  modalActions: { flexDirection: 'row', gap: 12, marginTop: 24 },
+  modalBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+  modalBtnCancel: { borderWidth: 1.5 },
+  modalBtnSave: { backgroundColor: '#1C0A00' },
 });
 
 export default ProfileScreen;
